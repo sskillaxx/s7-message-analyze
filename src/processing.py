@@ -82,8 +82,8 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
         host=os.getenv("DB_HOST"),
         user=os.getenv("DB_USER"),
         port=os.getenv("DB_PORT"),
-        password=os.getenv("DB_PASSWORD"),  # <--- твой пароль
-        database=os.getenv("DB_NAME"),         # <--- твоя БД
+        password=os.getenv("DB_PASSWORD"),
+        database=os.getenv("DB_NAME"),
         client_encoding="UTF8",
     )
     # Чтобы точно не забыть commit — включим autocommit
