@@ -1,0 +1,27 @@
+# не коммитим .env с данными от бд
+.env
+
+# не коммитим кэш питона
+__pycache__/
+*.py[cod]
+*.pyo
+
+# не коммитим виртуальные окружения
+venv/
+env/
+.venv/
+.virtualenv/
+.conda/
+__pycache__/
+
+# остальное
+*.log
+*.sqlite3
+.ipynb_checkpoints/
+
+# датасет
+/s7_dataset.parquet
+
+# докер-файлы, потому что пока не используем
+Dockerfile
+docker-compose.yml
