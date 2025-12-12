@@ -25,3 +25,4 @@ __pycache__/
 # докер-файлы, потому что пока не используем
 Dockerfile
 docker-compose.ymlsrc/models/
+src/models/
