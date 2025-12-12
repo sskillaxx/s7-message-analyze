@@ -1,7 +1,8 @@
 # main.py
 from fastapi import FastAPI
 
-from src.api import api_router  # наш роутер с эндпоинтами
+from src.api import api_router
+from src.dashboard import router as dashboard_router
 
 app = FastAPI(
     title="API FOR S7_CASE_3",
@@ -16,14 +17,14 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Подключаем роутер с префиксом /api
+# подключаем роутеры
 app.include_router(api_router)
-
+app.include_router(dashboard_router)
 
 @app.get("/")
 def root():
     """
-    Простейший health-check.
+    check.
     """
     return {
         "message": "api works",
