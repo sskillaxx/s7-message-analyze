@@ -47,8 +47,3 @@ def detect_sentiment(text):
         return detect_en_sentiment(text)
     else:
         return "undefined"
-    
-if __name__ == "__main__":
-    # Пример для теста
-    print(detect_sentiment("где распечатать посадочный билет? на сайте есть ссылка, но она не рабочая( URI_ADDRESS"))
-    print(detect_sentiment("what is prohibited to take in hand luggage?"))
