@@ -1,34 +1,61 @@
 import io
 import pandas as pd
 
-from fastapi import APIRouter
+from pathlib import Path
+from fastapi import APIRouter, UploadFile, File, RedirectResponse
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
+from fastapi import HTTPException 
+import numpy as np
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-router = APIRouter()
+router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+@router.post("/upload")
+async def upload_dashboard_csv(file: UploadFile = File(...)):
+    target = DATA_DIR / "dashboard_uploaded.csv"
+
+    contents = await file.read()
+    target.write_bytes(contents)
+
+    global _DASHBOARD_CSV_PATH
+    _DASHBOARD_CSV_PATH = target
+
+    return RedirectResponse(url="/dashboard", status_code=303)
+
+def _load_dashboard_df() -> pd.DataFrame:
+    if _DASHBOARD_CSV_PATH is None:
+        raise HTTPException(400, "CSV ещё не загружен. Сначала POST /dashboard/upload")
+
+    return pd.read_csv(_DASHBOARD_CSV_PATH, encoding="utf-8")
+
+def _clean_series(df: pd.DataFrame, col: str) -> pd.Series:
+    if col not in df.columns:
+        raise HTTPException(400, f"Нет колонки '{col}'. Колонки: {list(df.columns)}")
+
+    s = df[col].astype(str).str.strip()
+    s = s[(s != "") & (s.str.lower() != "nan")]
+    return s
+
 templates = Jinja2Templates(directory="templates")
 
-CSV_PATH = "data/exported_s7_data.csv"
+DATA_DIR = Path("data")
+CSV_PATH = DATA_DIR / "exported_s7_data.csv"
+_DASHBOARD_CSV_PATH: Path 
 
-@router.get("/dashboard", response_class=HTMLResponse)
+@router.get("/", response_class=HTMLResponse)
 def dashboard_page(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
-@router.get("/dashboard/topic-pie.png")
+@router.get("/topic-pie.png") 
 def topic_pie_png():
-    df = pd.read_csv(CSV_PATH, encoding="utf-8")
+    df = _load_dashboard_df()
 
-    topic_col = "topic" if "topic" in df.columns else "user_topic"
-    if topic_col not in df.columns:
-        df[topic_col] = "unknown"
-
-    topic_counts = df[topic_col].value_counts()
+    topic_counts = _clean_series(df, "user_topic").value_counts()
     total = topic_counts.sum()
     topic_percentages = (topic_counts / total * 100).round(2)
 
@@ -54,25 +81,14 @@ def topic_pie_png():
 
     return StreamingResponse(buf, media_type="image/png")
 
-@router.get("/dashboard/sentiment-pie.png")
+@router.get("/sentiment-pie.png") 
 def sentiment_pie_png():
-    df = pd.read_csv("data/exported_s7_data.csv", encoding="utf-8")
-
-    if "sentiment" not in df.columns:
-        df["sentiment"] = "unknown"
-
-    sentiment_counts = df["sentiment"].value_counts()
-
-    NUM_SENTIMENTS_TO_SHOW = 3  # ← прямо тут, без глобальных констант
-
-    top_sentiments = sentiment_counts.head(NUM_SENTIMENTS_TO_SHOW)
-    total = top_sentiments.sum()
-
-    if total == 0:
-        top_sentiments = pd.Series([1], index=["unknown"])
-        total = 1
-
-    sentiment_percentages = (top_sentiments / total * 100).round(2)
+    df = _load_dashboard_df()
+    
+    sentiment_counts = _clean_series(df, "user_sentiment").value_counts()
+    total = sentiment_counts.sum()
+    sentiment_percentages = (sentiment_counts / total * 100).round(2)
+    
     colors = plt.cm.tab20c(range(len(sentiment_percentages)))
 
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -112,16 +128,12 @@ def sentiment_pie_png():
 
     return StreamingResponse(buf, media_type="image/png")
 
-@router.get("/dashboard/emotion-bubble.png")
+@router.get("/emotion-bubble.png") 
 def emotion_bubble_png():
-    df = pd.read_csv("data/exported_s7_data.csv", encoding="utf-8")
+    df = _load_dashboard_df()
+    
+    emotion_counts = _clean_series(df, "user_emotion").value_counts()
 
-    if "emotion" not in df.columns:
-        df["emotion"] = "unknown"
-
-    emotion_counts = df["emotion"].value_counts()
-
-    # проценты как у тебя: от длины df
     if len(df) == 0:
         emotion_percentages = pd.Series([100.0], index=["unknown"])
     else:
@@ -177,4 +189,3 @@ def emotion_bubble_png():
     buf.seek(0)
 
     return StreamingResponse(buf, media_type="image/png")
-

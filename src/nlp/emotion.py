@@ -2,10 +2,6 @@ import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from src.nlp.language import detect_language
 
-load_dotenv()
-os.environ['HTTP_PROXY'] = os.getenv("HTTP_PROXY")
-os.environ['HTTPS_PROXY'] = os.getenv("HTTPS_PROXY")
-
 class Model:
     def __init__(self, model_path: str):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

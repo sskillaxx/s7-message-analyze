@@ -5,9 +5,15 @@
   <title>Dashboard</title>
 </head>
 <body>
-  <h2>Дашборд по тематикам</h2>
+  <h2>Дашборды</h2>
 
-  <button id="btn">Показать дашборд по тематикам</button>
+  <form id="upload-form" enctype="multipart/form-data">
+    <input type="file" id="csv-file" name="file" accept=".csv" required />
+    <button type="submit">Загрузить CSV и создать дашборд</button>
+    <span id="upload-status"></span>
+  </form>
+  
+  <button id="btn-topic">Показать дашборд по тематикам</button>
   <button id="btn-sentiment" style="margin-left: 8px;">Показать дашборд по сентиментам</button>
   <button id="btn-emotion" style="margin-left: 8px;">Показать дашборд по эмоциям</button>
   
@@ -32,9 +38,30 @@
 
     document.getElementById("btn-emotion").addEventListener("click", () => {
     const img = document.getElementById("chart-emotion");
-    img.src = "/dashboard/emotion-bubble.png?t=" + Date.now(); // анти-кеш
+    img.src = "/dashboard/emotion-bubble.png?t=" + Date.now();
     img.style.display = "block";
     });
+
+    document.getElementById("upload-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const fileInput = document.getElementById("csv-file");
+      if (!fileInput.files.length) return;
+
+      const form = new FormData();
+      form.append("file", fileInput.files[0]);
+
+      const status = document.getElementById("upload-status");
+      status.textContent = "Загрузка...";
+
+      const resp = await fetch("/dashboard/upload", { method: "POST", body: form });
+
+      if (resp.redirected) {
+        window.location.href = resp.url;
+        return;
+      }
+
+      status.textContent = resp.ok ? "Загружено" : "Ошибка загрузки";
   </script>
 
 </body>
