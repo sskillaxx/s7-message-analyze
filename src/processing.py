@@ -9,7 +9,6 @@ from pathlib import Path
 import pandas as pd
 import psycopg2 as ps
 
-# когда появятся реальные функции, раскомментируешь и подставишь
 from src.nlp import (
     detect_language,
     detect_sentiment,
@@ -17,11 +16,7 @@ from src.nlp import (
     detect_topic,
 )
 
-
 def check_file_extension(path: str) -> pd.DataFrame:
-    """
-    Читаем датасет в pandas.DataFrame по расширению файла.
-    """
     extension = os.path.splitext(path)[1].lower()
 
     if extension == ".csv":
@@ -37,34 +32,15 @@ def check_file_extension(path: str) -> pd.DataFrame:
 
 
 def database_update(messages_path: str, limit: Optional[int] = None) -> str:
-    """
-    1. Читаем датасет из файла messages_path.
-    2. Берём колонку 'text' и (опционально) 'source'.
-    3. Цикл for i in range(len(df)):
-         - text = df.iloc[i]['text']
-         - source = df.iloc[i]['source'] (если колонка есть)
-         - если source == 'CLIENT' (или колонки нет — вставляем всё)
-           -> вставляем в БД строку с плейсхолдерами:
-              detected_language = 'language'
-              detected_sentiment = 'sentiment'
-              detected_emotion = 'emotion'
-              detected_topic = 'topic'
-    4. SELECT * FROM s7_data → экспорт в CSV ./data/exported_s7_data.csv.
-    5. Возвращаем путь к CSV.
-    """
-
     print(f"[database_update] Старт обработки файла: {messages_path}")
 
-    # === 1. Читаем датасет ===
     df = check_file_extension(messages_path)
     print(f"[database_update] Прочитано строк: {len(df)}, колонки: {list(df.columns)}")
 
-    # === 2. Ограничиваем количество строк (если нужно) ===
     if limit is not None:
         df = df.head(limit)
         print(f"[database_update] Применён limit={limit}, строк осталось: {len(df)}")
 
-    # === 3. Проверяем, что есть колонка 'text' ===
     if "text" not in df.columns:
         raise ValueError(
             f"В датасете нет колонки 'text'. Найденные колонки: {list(df.columns)}"
@@ -76,8 +52,6 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
     else:
         print("[database_update] Колонки 'source' нет — вставляем ВСЕ строки без фильтра.")
 
-    # === 4. Подключаемся к БД ===
-    # ОБЯЗАТЕЛЬНО поменяй параметры под себя
     connection = ps.connect(
         host=os.getenv("DB_HOST"),
         user=os.getenv("DB_USER"),
@@ -86,12 +60,10 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
         database=os.getenv("DB_NAME"),
         client_encoding="UTF8",
     )
-    # Чтобы точно не забыть commit — включим autocommit
     connection.autocommit = True
 
     cursor = connection.cursor()
 
-    # На всякий случай — создаём таблицу, если её нет
     create_table_query = """
         CREATE TABLE IF NOT EXISTS s7_data (
             user_text      TEXT,
@@ -110,7 +82,6 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
 
     rows_inserted = 0
 
-    # === 5. ТВОЙ ЦИКЛ: for i in range(len(df)) + условие source == 'CLIENT' ===
     for i in range(len(df)):
         text = str(df.iloc[i]["text"]).strip()
 
@@ -119,22 +90,13 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
 
         if has_source:
             source = str(df.iloc[i]["source"])
-            # ТВОЁ УСЛОВИЕ — как есть
             if source != "CLIENT":
                 continue
 
-        # --------- СЕЙЧАС: ПЛЕЙСХОЛДЕРЫ ---------
-        # detected_language = "language"
-        # detected_sentiment = "sentiment"
-        # detected_emotion = "emotion"
-        # detected_topic = "topic"
-
-        # --------- ПОТОМ: ЗАМЕНИШЬ НА РЕАЛЬНЫЕ ФУНКЦИИ ---------
         detected_language = detect_language(text)
         detected_sentiment = detect_sentiment(text)
         detected_emotion = detect_emotion(text)
         detected_topic = detect_topic(text)
-        # -------------------------------------------------------
 
         data_to_insert = (
             text,
@@ -149,19 +111,15 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
 
     print(f"[database_update] Вставлено НОВЫХ строк в БД: {rows_inserted}")
 
-    # autocommit=True уже фиксирует изменения, но на всякий случай:
     connection.commit()
     print("[database_update] Транзакция зафиксирована (COMMIT)")
-
-    # === 6. Экспортируем ВСЮ таблицу s7_data в CSV ===
 
     export_cursor = connection.cursor()
     export_cursor.execute("SELECT * FROM s7_data")
     rows = export_cursor.fetchall()
     col_names = [desc[0] for desc in export_cursor.description]
 
-    # CSV в ./data/exported_s7_data.csv
-    base_dir = Path(__file__).resolve().parent.parent  # src -> корень проекта
+    base_dir = Path(__file__).resolve().parent.parent
     data_dir = base_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -169,8 +127,8 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
 
     with export_path.open("w", newline="", encoding="utf-8") as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(col_names)  # заголовки
-        csv_writer.writerows(rows)      # данные
+        csv_writer.writerow(col_names) 
+        csv_writer.writerows(rows)
 
     print(f"[database_update] Экспортировано в CSV: {export_path}")
 

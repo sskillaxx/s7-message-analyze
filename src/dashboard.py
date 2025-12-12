@@ -7,28 +7,25 @@ from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
 import matplotlib
-matplotlib.use("Agg")  # важно для сервера без GUI
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-CSV_PATH = "data/exported_s7_data.csv"  # ✅ путь к твоему csv (как в проекте)
+CSV_PATH = "data/exported_s7_data.csv"
 
 @router.get("/dashboard", response_class=HTMLResponse)
 def dashboard_page(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
-
 @router.get("/dashboard/topic-pie.png")
 def topic_pie_png():
     df = pd.read_csv(CSV_PATH, encoding="utf-8")
 
-    # ✅ поддержка обоих вариантов названий колонки
     topic_col = "topic" if "topic" in df.columns else "user_topic"
     if topic_col not in df.columns:
-        # если нет вообще — лучше вернуть 400/сообщение, но пока упростим
         df[topic_col] = "unknown"
 
     topic_counts = df[topic_col].value_counts()

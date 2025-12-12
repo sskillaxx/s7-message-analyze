@@ -1,4 +1,3 @@
-# main.py
 from fastapi import FastAPI
 
 from src.api import api_router
@@ -17,33 +16,25 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# подключаем роутеры
 app.include_router(api_router)
 app.include_router(dashboard_router)
 
 @app.get("/")
 def root():
-    """
-    check.
-    """
     return {
         "message": "api works",
         "docs": "/docs",
         "openapi_json": "/openapi.json",
     }
 
-
 def start_fastapi() -> None:
-    """
-    Отдельная функция старта, как в примере, только без лишних воркеров/очередей.
-    """
     import uvicorn
 
     uvicorn.run(
         "main:app",
         host="127.0.0.1",
         port=8000,
-        reload=True,  # авто-перезапуск при изменении кода
+        reload=True,
     )
 
 
