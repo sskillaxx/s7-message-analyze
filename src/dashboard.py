@@ -111,3 +111,70 @@ def sentiment_pie_png():
     buf.seek(0)
 
     return StreamingResponse(buf, media_type="image/png")
+
+@router.get("/dashboard/emotion-bubble.png")
+def emotion_bubble_png():
+    df = pd.read_csv("data/exported_s7_data.csv", encoding="utf-8")
+
+    if "emotion" not in df.columns:
+        df["emotion"] = "unknown"
+
+    emotion_counts = df["emotion"].value_counts()
+
+    # проценты как у тебя: от длины df
+    if len(df) == 0:
+        emotion_percentages = pd.Series([100.0], index=["unknown"])
+    else:
+        emotion_percentages = (emotion_counts / len(df) * 100).round(1)
+
+    emotions = emotion_percentages.index.tolist()
+    percentages = emotion_percentages.values.tolist()
+
+    np.random.seed(5)  # воспроизводимость
+    x = np.random.rand(len(emotions)) * 10
+    y = np.random.rand(len(emotions)) * 10
+
+    sizes = [p * 500 for p in percentages]
+    colors = plt.cm.Set3(np.linspace(0, 1, len(emotions))) if len(emotions) > 0 else ["grey"]
+
+    fig, (ax1, ax2) = plt.subplots(
+        1, 2, figsize=(15, 8),
+        gridspec_kw={"width_ratios": [2, 1]}
+    )
+
+    ax1.scatter(x, y, s=sizes, c=colors, alpha=0.7,
+                edgecolors="black", linewidth=1.5)
+
+    ax1.set_title("Распределение эмоций в клиентских сообщениях", fontsize=16, fontweight="regular", pad=20)
+    ax1.set_xlabel("Координата X", fontsize=12)
+    ax1.set_ylabel("Координата Y", fontsize=12)
+    ax1.grid(True, alpha=0.3)
+    ax1.set_xlim(0, 10)
+    ax1.set_ylim(0, 10)
+
+    for i, emotion in enumerate(emotions):
+        ax1.text(x[i], y[i], emotion, fontsize=10, fontweight="regular",
+                 ha="center", va="center", color="black")
+
+    legend_elements = []
+    for i, (emotion, percentage) in enumerate(zip(emotions, percentages)):
+        legend_elements.append(
+            plt.Rectangle((0, 0), 1, 1,
+                          fc=colors[i],
+                          label=f"{emotion}: {percentage}%",
+                          edgecolor="black")
+        )
+
+    ax2.legend(handles=legend_elements, loc="center", fontsize=12,
+               title="Эмоции", title_fontsize=14)
+    ax2.axis("off")
+
+    plt.tight_layout()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+
+    return StreamingResponse(buf, media_type="image/png")
+

@@ -9,10 +9,12 @@
 
   <button id="btn">Показать дашборд по тематикам</button>
   <button id="btn-sentiment" style="margin-left: 8px;">Показать дашборд по сентиментам</button>
+  <button id="btn-emotion" style="margin-left: 8px;">Показать дашборд по эмоциям</button>
   
   <div style="margin-top: 16px;">
-    <img id="chart" alt="Topic chart" style="max-width: 100%; display:none;" />
+    <img id="chart-topic" alt="Topic chart" style="max-width: 100%; display:none;" />
     <img id="chart-sentiment" alt="Sentiment chart" style="max-width: 100%; display:none; margin-top: 16px;" />
+    <img id="chart-emotion" alt="Sentiment chart" style="max-width: 100%; display:none; margin-top: 20px;" />
   </div>
 
   <script>
@@ -26,6 +28,12 @@
       const imgSent = document.getElementById("chart-sentiment");
       imgSent.src = "/dashboard/sentiment-pie.png?t=" + Date.now();
       imgSent.style.display = "block";
+    });
+
+    document.getElementById("btn-emotion").addEventListener("click", () => {
+    const img = document.getElementById("chart-emotion");
+    img.src = "/dashboard/emotion-bubble.png?t=" + Date.now(); // анти-кеш
+    img.style.display = "block";
     });
   </script>
 
