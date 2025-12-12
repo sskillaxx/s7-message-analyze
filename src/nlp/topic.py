@@ -1,10 +1,48 @@
-from .language import detect_language
+import torch
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+import os
+from dotenv import load_dotenv
+from language import detect_language
+
+load_dotenv()
+os.environ['HTTP_PROXY'] = os.getenv("HTTP_PROXY")
+os.environ['HTTPS_PROXY'] = os.getenv("HTTPS_PROXY")
+
+class Model:
+    def __init__(self, model_path: str):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_path).to(self.device)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+        self.model.eval()
+        self.valid_topics = ['багаж, забытые вещи и специальные грузы',
+                            'билеты и тарифы',
+                            'другое',
+                            'лояльность и сертификаты',
+                            'обмены, возвраты и официальные документы',
+                            'сервис и обслуживание пассажиров',
+                            'технические и цифровые сервисы'
+                            ]
+        
+    def predict(self, text):
+        inputs = self.tokenizer(text, padding=True, truncation=True, return_tensors="pt").to(self.device)
+        with torch.no_grad():
+            logits = self.model(**inputs).logits
+        topic = self.model.config.id2label[logits.argmax().item()]
+        if topic in self.valid_topics:
+            return topic 
+        else:
+            return 'invalid'
+
+ru_predictor = None
+en_predictor = None
 
 def detect_ru_topic(text):
-    pass
+    global ru_predictor
+    ru_predictor = Model("dalture/s7-ru-topics")
+    return ru_predictor.predict(text)
 
 def detect_en_topic(text):
-    pass
+    return "TBA"
 
 def detect_topic(text):
     lang = detect_language(text)
