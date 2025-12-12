@@ -11,7 +11,7 @@ class Model:
         self.valid_sentiments = ['negative', 'neutral', 'positive']
         
     def predict(self, text):
-        inputs = self.tokenizer(text, padding=True, truncation=True, treturn_tensors="pt").to(self.device)
+        inputs = self.tokenizer(text, padding=True, truncation=True, return_tensors="pt").to(self.device)
         with torch.no_grad():
             logits = self.model(**inputs).logits
         sentiment = self.model.config.id2label[logits.argmax().item()]
