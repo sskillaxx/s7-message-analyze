@@ -3,10 +3,11 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import os
 from dotenv import load_dotenv
 from src.nlp.language import detect_language
+#import time
 
 load_dotenv()
-os.environ['HTTP_PROXY'] = os.getenv("HTTP_PROXY")
-os.environ['HTTPS_PROXY'] = os.getenv("HTTPS_PROXY")
+# os.environ['HTTP_PROXY'] = os.getenv("HTTP_PROXY")
+# os.environ['HTTPS_PROXY'] = os.getenv("HTTPS_PROXY")
 
 class Model:
     def __init__(self, model_path: str):
@@ -31,12 +32,32 @@ en_predictor = None
 
 def detect_ru_sentiment(text):
     global ru_predictor
+    #print('ru_sent: начало обработки')
+    
+    #load_start = time.perf_counter()
     ru_predictor = Model("dalture/s7-ru-sentiment")
+    #load_time = time.perf_counter() - load_start
+    #print(f'ru_sent: модель загружена, время загрузки: {load_time:.4f}')
+    
+    #predict_start = time.perf_counter()
+    #result = ru_predictor.predict(text)
+    #predict_time = time.perf_counter() - predict_start
+    #print(f"ru_sent: предсказание сделано, затраченное время: {predict_time:.4f} сек")
     return ru_predictor.predict(text)
 
 def detect_en_sentiment(text):
     global en_predictor
+    #print('en_sent: начало обработки')
+    
+    #load_start = time.perf_counter()
     en_predictor = Model("dalture/s7-eng-sentiment")
+    #load_time = time.perf_counter() - load_start
+    #print(f'en_sent: модель загружена, время загрузки: {load_time:.4f}')
+    
+    #predict_start = time.perf_counter()
+    #result = en_predictor.predict(text)
+    #predict_time = time.perf_counter() - predict_start
+    #print(f"en_sent: предсказание сделано, затраченное время: {predict_time:.4f} сек")
     return en_predictor.predict(text)
 
 def detect_sentiment(text):
