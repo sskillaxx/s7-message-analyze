@@ -1,22 +1,18 @@
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import os
-from pathlib import Path
 from dotenv import load_dotenv
-from .language import detect_language
+from language import detect_language
 
 load_dotenv()
 os.environ['HTTP_PROXY'] = os.getenv("HTTP_PROXY")
 os.environ['HTTPS_PROXY'] = os.getenv("HTTPS_PROXY")
 
-SRC_DIR = Path(__file__).parent.parent
-MODEL_DIR = SRC_DIR / "models"
 class Model:
     def __init__(self, model_path: str):
-        model_path = Path(model_path).resolve()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_path, local_files_only=True).to(self.device)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_path).to(self.device)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
         self.model.eval()
         self.valid_sentiments = ['negative', 'neutral', 'positive']
         
@@ -28,19 +24,19 @@ class Model:
         if sentiment in self.valid_sentiments:
             return sentiment 
         else:
-            return 'neutral'
+            return 'invalid'
 
 ru_predictor = None
 en_predictor = None
 
 def detect_ru_sentiment(text):
     global ru_predictor
-    ru_predictor = Model(MODEL_DIR / "ru_sentiment" / "checkpoint-215")
+    ru_predictor = Model("dalture/s7-ru-sentiment")
     return ru_predictor.predict(text)
 
 def detect_en_sentiment(text):
     global en_predictor
-    en_predictor = Model(MODEL_DIR / "eng_sentiment")
+    en_predictor = Model("dalture/s7-eng-sentiment")
     return en_predictor.predict(text)
 
 def detect_sentiment(text):
