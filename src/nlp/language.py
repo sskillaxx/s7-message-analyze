@@ -2,11 +2,12 @@ import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import os
 from dotenv import load_dotenv
-#import time
-
 load_dotenv()
-# os.environ['HTTP_PROXY'] = os.getenv("HTTP_PROXY")
-# os.environ['HTTPS_PROXY'] = os.getenv("HTTPS_PROXY")
+
+http_proxy = os.getenv("HTTP_PROXY")
+https_proxy = os.getenv("HTTPS_PROXY")
+os.environ['HTTP_PROXY'] = http_proxy
+os.environ['HTTPS_PROXY'] = https_proxy
 
 model_ckpt = "papluca/xlm-roberta-base-language-detection"
 tokenizer = AutoTokenizer.from_pretrained(model_ckpt, force_download=True)
@@ -14,8 +15,6 @@ model = AutoModelForSequenceClassification.from_pretrained(model_ckpt)
 model.eval()
 
 def detect_language(text):
-    #start = time.perf_counter()
-    
     inputs = tokenizer(
         text,
         padding=True,
