@@ -2,7 +2,7 @@ import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import os
 from dotenv import load_dotenv
-from language import detect_language
+from src.nlp.language import detect_language
 
 load_dotenv()
 os.environ['HTTP_PROXY'] = os.getenv("HTTP_PROXY")

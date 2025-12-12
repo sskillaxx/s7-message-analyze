@@ -10,12 +10,12 @@ import pandas as pd
 import psycopg2 as ps
 
 # когда появятся реальные функции, раскомментируешь и подставишь
-# from src.nlp import (
-#     detect_language,
-#     detect_sentiment,
-#     detect_emotion,
-#     detect_topic,
-# )
+from src.nlp import (
+    detect_language,
+    detect_sentiment,
+    detect_emotion,
+    detect_topic,
+)
 
 
 def check_file_extension(path: str) -> pd.DataFrame:
@@ -124,16 +124,16 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
                 continue
 
         # --------- СЕЙЧАС: ПЛЕЙСХОЛДЕРЫ ---------
-        detected_language = "language"
-        detected_sentiment = "sentiment"
-        detected_emotion = "emotion"
-        detected_topic = "topic"
+        # detected_language = "language"
+        # detected_sentiment = "sentiment"
+        # detected_emotion = "emotion"
+        # detected_topic = "topic"
 
         # --------- ПОТОМ: ЗАМЕНИШЬ НА РЕАЛЬНЫЕ ФУНКЦИИ ---------
-        # detected_language = detect_language(text)
-        # detected_sentiment = detect_sentiment(text)
-        # detected_emotion = detect_emotion(text)
-        # detected_topic = detect_topic(text)
+        detected_language = detect_language(text)
+        detected_sentiment = detect_sentiment(text)
+        detected_emotion = detect_emotion(text)
+        detected_topic = detect_topic(text)
         # -------------------------------------------------------
 
         data_to_insert = (
