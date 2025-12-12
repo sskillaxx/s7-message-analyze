@@ -1,12 +1,6 @@
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-import os
-from dotenv import load_dotenv
 from src.nlp.language import detect_language
-
-load_dotenv()
-os.environ['HTTP_PROXY'] = os.getenv("HTTP_PROXY")
-os.environ['HTTPS_PROXY'] = os.getenv("HTTPS_PROXY")
 
 class Model:
     def __init__(self, model_path: str):
@@ -17,7 +11,7 @@ class Model:
         self.valid_sentiments = ['negative', 'neutral', 'positive']
         
     def predict(self, text):
-        inputs = self.tokenizer(text, padding=True, truncation=True, return_tensors="pt").to(self.device)
+        inputs = self.tokenizer(text, padding=True, truncation=True, treturn_tensors="pt").to(self.device)
         with torch.no_grad():
             logits = self.model(**inputs).logits
         sentiment = self.model.config.id2label[logits.argmax().item()]
@@ -31,12 +25,14 @@ en_predictor = None
 
 def detect_ru_sentiment(text):
     global ru_predictor
-    ru_predictor = Model("dalture/s7-ru-sentiment")
+    if ru_predictor is None:
+        ru_predictor = Model("dalture/s7-ru-sentiment")
     return ru_predictor.predict(text)
 
 def detect_en_sentiment(text):
     global en_predictor
-    en_predictor = Model("dalture/s7-eng-sentiment")
+    if en_predictor is None:
+        en_predictor = Model("dalture/s7-eng-sentiment")
     return en_predictor.predict(text)
 
 def detect_sentiment(text):

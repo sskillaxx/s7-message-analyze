@@ -1,12 +1,6 @@
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-import os
-from dotenv import load_dotenv
 from src.nlp.language import detect_language
-
-load_dotenv()
-os.environ['HTTP_PROXY'] = os.getenv("HTTP_PROXY")
-os.environ['HTTPS_PROXY'] = os.getenv("HTTPS_PROXY")
 
 class Model:
     def __init__(self, model_path: str):
@@ -38,7 +32,8 @@ en_predictor = None
 
 def detect_ru_topic(text):
     global ru_predictor
-    ru_predictor = Model("dalture/s7-ru-topics")
+    if ru_predictor is None:
+        ru_predictor = Model("dalture/s7-ru-topics")
     return ru_predictor.predict(text)
 
 def detect_en_topic(text):
