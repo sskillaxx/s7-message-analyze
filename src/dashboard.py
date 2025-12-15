@@ -38,7 +38,7 @@ def _clean_series(df: pd.DataFrame, col: str) -> pd.Series:
         raise HTTPException(400, f"Нет колонки '{col}'. Колонки: {list(df.columns)}")
 
     s = df[col].astype(str).str.strip()
-    s = s[(s != "") & (s.str.lower() != "nan")]
+    s = s[(s != "") & (s.str.lower() != "nan") & (s.str.lower() != "undefined")]
     return s
 
 templates = Jinja2Templates(directory="templates")
