@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 from fastapi import HTTPException 
 import numpy as np
+import os
 
 import matplotlib
 matplotlib.use("Agg")
@@ -189,3 +190,71 @@ def emotion_bubble_png():
     buf.seek(0)
 
     return StreamingResponse(buf, media_type="image/png")
+
+@router.get("/dashboard/emotion-topic", response_class=HTMLResponse)
+async def emotion_topic_dashboard(request: Request):
+    global _DASHBOARD_CSV_PATH
+
+    if not _DASHBOARD_CSV_PATH or not os.path.exists(_DASHBOARD_CSV_PATH):
+        return HTMLResponse(
+            "<h3>CSV не загружен</h3><p>Сначала загрузите файл на странице /dashboard.</p>",
+            status_code=400
+        )
+
+    import plotly.graph_objects as go
+
+    df = pd.read_csv(_DASHBOARD_CSV_PATH)
+
+    df_clean = df[~df["user_emotion"].isin(["undefined", "invalid"])]
+    df_clean = df_clean.dropna(subset=["user_emotion"])
+
+    emotion_counts = df_clean["user_emotion"].value_counts()
+    emotion_percentages = (emotion_counts / emotion_counts.sum() * 100).round(2)
+
+    emotion_topics = {}
+    for emotion in df_clean["user_emotion"].unique():
+        topics = (
+            df_clean[df_clean["user_emotion"] == emotion]["user_topic"]
+            .dropna()
+            .unique()
+        )
+        emotion_topics[emotion] = [str(topic).strip() for topic in topics]
+
+    emotions = emotion_percentages.index.tolist()
+    percentages = emotion_percentages.values.tolist()
+
+    colors = ["#4285F4", "#FBBC05", "#EA4335", "#34A853"]
+
+    fig = go.Figure(
+        data=[
+            go.Pie(
+                labels=emotions,
+                values=percentages,
+                marker=dict(colors=colors),
+                textinfo="percent",
+                hovertemplate=(
+                    "<b>Эмоция:</b> %{label}<br>"
+                    "<b>Доля:</b> %{percent}<br>"
+                    "<b>Тематики:</b><br>%{customdata}"
+                    "<extra></extra>"
+                ),
+                customdata=[
+                    "<br>".join(emotion_topics[e]) for e in emotions
+                ],
+            )
+        ]
+    )
+
+    fig.update_layout(
+        title=dict(
+            text="<b>Распределение эмоций",
+            x=0.5,
+            xanchor="center",
+            font=dict(size=25, family="Arial"),
+        ),
+        width=1200,
+        height=800,
+    )
+
+    html = fig.to_html(full_html=True, include_plotlyjs="cdn")
+    return HTMLResponse(html)
