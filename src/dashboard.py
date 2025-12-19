@@ -191,7 +191,7 @@ def emotion_bubble_png():
 
     return StreamingResponse(buf, media_type="image/png")
 
-@router.get("/dashboard/emotion-topic", response_class=HTMLResponse)
+@router.get("/emotion-topic", response_class=HTMLResponse)
 async def emotion_topic_dashboard(request: Request):
     global _DASHBOARD_CSV_PATH
 
