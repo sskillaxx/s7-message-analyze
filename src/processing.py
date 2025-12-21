@@ -3,6 +3,7 @@ import csv
 from typing import Optional
 from dotenv import load_dotenv
 load_dotenv()
+import time
 
 from pathlib import Path
 
@@ -81,6 +82,8 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
     """
 
     rows_inserted = 0
+    db_write_start = None
+
 
     for i in range(len(df)):
         text = str(df.iloc[i]["text"]).strip()
@@ -94,22 +97,37 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
                 continue
 
         detected_language = detect_language(text)
-        detected_sentiment = detect_sentiment(text)
-        detected_emotion = detect_emotion(text)
-        detected_topic = detect_topic(text)
+        detected_sentiment = detect_sentiment(text, language=detected_language)
+        detected_emotion = detect_emotion(text, language=detected_language)
+        detected_topic = detect_topic(text, language=detected_language)
 
-        data_to_insert = (
+        if detected_language == "undefined":
+            pass
+        else:
+            data_to_insert = (
             text,
             detected_sentiment,
             detected_emotion,
             detected_topic,
             detected_language,
         )
+        
+            if db_write_start is None:
+                db_write_start = time.perf_counter()
 
-        cursor.execute(insert_query, data_to_insert)
-        rows_inserted += 1
+            cursor.execute(insert_query, data_to_insert)
+            rows_inserted += 1
 
     print(f"[database_update] Вставлено НОВЫХ строк в БД: {rows_inserted}")
+
+    db_write_end = time.perf_counter()
+
+    if db_write_start is not None:
+        write_time = db_write_end - db_write_start
+        print(
+            f"[database_update] Время работы: {write_time:.4f} сек "
+            f"(строк: {rows_inserted})"
+        )
 
     connection.commit()
     print("[database_update] Транзакция зафиксирована (COMMIT)")

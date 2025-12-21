@@ -1,6 +1,6 @@
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-from src.nlp.language import detect_language
+import time
 
 class Model:
     def __init__(self, model_path: str):
@@ -25,19 +25,27 @@ en_predictor = None
 
 def detect_ru_sentiment(text):
     global ru_predictor
-    ru_predictor = Model("dalture/s7-ru-sentiment")
-    return ru_predictor.predict(text)
+    print('ru_sent: начало обработки')
+    
+    if ru_predictor is None:
+        ru_predictor = Model("dalture/s7-ru-sentiment")
+    
+    result = ru_predictor.predict(text)
+    return result
 
 def detect_en_sentiment(text):
     global en_predictor
-    en_predictor = Model("dalture/s7-eng-sentiment")
-    return en_predictor.predict(text)
+    
+    if en_predictor is None:
+        ru_predictor = Model("dalture/s7-eng-sentiment")
+    
+    result = ru_predictor.predict(text)
+    return result
 
-def detect_sentiment(text):
-    lang = detect_language(text)
-    if lang == "ru":
+def detect_sentiment(text, language):
+    if language == "ru":
         return detect_ru_sentiment(text)
-    elif lang == "en":
+    elif language == "en":
         return detect_en_sentiment(text)
     else:
         return "undefined"
