@@ -1,18 +1,22 @@
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+os.environ['HTTP_PROXY'] = os.getenv("HTTP_PROXY")
+os.environ['HTTPS_PROXY'] = os.getenv("HTTPS_PROXY")
 
 model_ckpt = "papluca/xlm-roberta-base-language-detection"
-tokenizer = AutoTokenizer.from_pretrained(model_ckpt, force_download=True)
+tokenizer = AutoTokenizer.from_pretrained(model_ckpt)
 model = AutoModelForSequenceClassification.from_pretrained(model_ckpt)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = model.to(device)
 model.eval()
 
 def detect_language(text):
-    inputs = tokenizer(
-        text,
-        padding=True,
-        truncation=True,
-        return_tensors="pt"
-    )
+    text = " ".join(text.strip().split())
+    inputs = tokenizer(text, padding=True, truncation=True, max_length=128, return_tensors="pt").to(device)
 
     with torch.no_grad():
         logits = model(**inputs).logits
@@ -22,7 +26,10 @@ def detect_language(text):
     
     lang = model.config.id2label[idx.item()]
     
-    if lang not in ['en', 'ru']:
+    if lang not in {'en', 'ru'}:
         return 'unidentified'
     else:
         return lang
+    
+if __name__ == "__main__":
+    print(detect_language('позовите оператора'))
