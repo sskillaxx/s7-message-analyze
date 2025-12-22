@@ -1,9 +1,9 @@
 import os
 import csv
+import time
 from typing import Optional
 from dotenv import load_dotenv
 load_dotenv()
-import time
 
 from pathlib import Path
 
