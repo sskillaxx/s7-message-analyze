@@ -57,13 +57,29 @@ def topic_pie_png():
     df = _load_dashboard_df()
 
     topic_counts = _clean_series(df, "user_topic").value_counts()
+    if topic_counts.empty:
+        raise HTTPException(400, "Нет данных для построения графика тематик")
+
     total = topic_counts.sum()
     topic_percentages = (topic_counts / total * 100).round(2)
 
     colors = plt.cm.tab20c(range(len(topic_percentages)))
 
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.pie(topic_percentages.values, labels=None, autopct="", colors=colors, startangle=140)
+    fig, ax = plt.subplots(figsize=(12, 6))
+    wedges, texts, autotexts = ax.pie(
+        topic_percentages.values,
+        labels=None,
+        autopct="%1.1f%%",
+        colors=colors,
+        startangle=140,
+        pctdistance=0.85,
+    )
+
+    for autotext in autotexts:
+        autotext.set_color("black")
+        autotext.set_fontweight("regular")
+        autotext.set_fontsize(7)
+
     ax.axis("equal")
     plt.title("Распределение тематик обращений (%)", fontsize=14, pad=20)
 
@@ -71,8 +87,19 @@ def topic_pie_png():
         f"{topic} - {percentage}%"
         for topic, percentage in zip(topic_percentages.index, topic_percentages.values)
     ]
-    legend_patches = [mpatches.Patch(color=colors[i], label=legend_labels[i]) for i in range(len(legend_labels))]
-    plt.legend(handles=legend_patches, title="Тематики", loc="center left", bbox_to_anchor=(1, 0.5), fontsize=10)
+    legend_patches = [
+        mpatches.Patch(color=colors[i], label=legend_labels[i])
+        for i in range(len(legend_labels))
+    ]
+
+    plt.legend(
+        handles=legend_patches,
+        title="Тематики",
+        loc="center left",
+        bbox_to_anchor=(1.1, 0.5),
+        fontsize=10,
+    )
+
     plt.tight_layout()
 
     buf = io.BytesIO()
