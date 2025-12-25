@@ -1,6 +1,11 @@
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-import time
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+os.environ['HTTP_PROXY'] = os.getenv("HTTP_PROXY")
+os.environ['HTTPS_PROXY'] = os.getenv("HTTPS_PROXY")
 
 class Model:
     def __init__(self, model_path: str):

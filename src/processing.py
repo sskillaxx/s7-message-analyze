@@ -1,9 +1,9 @@
 import os
 import csv
+import time
 from typing import Optional
 from dotenv import load_dotenv
 load_dotenv()
-import time
 
 from pathlib import Path
 
@@ -101,7 +101,7 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
         detected_emotion = detect_emotion(text, language=detected_language)
         detected_topic = detect_topic(text, language=detected_language)
 
-        if detected_language == "undefined":
+        if detected_language != "ru":
             pass
         else:
             data_to_insert = (
