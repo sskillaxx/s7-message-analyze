@@ -25,7 +25,6 @@ en_predictor = None
 
 def detect_ru_sentiment(text):
     global ru_predictor
-    print('ru_sent: начало обработки')
     
     if ru_predictor is None:
         ru_predictor = Model("dalture/s7-ru-sentiment")
