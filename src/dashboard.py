@@ -85,39 +85,52 @@ def topic_pie_png():
 @router.get("/sentiment-pie.png") 
 def sentiment_pie_png():
     df = _load_dashboard_df()
-    
-    sentiment_counts = _clean_series(df, "user_sentiment").value_counts()
-    total = sentiment_counts.sum()
-    sentiment_percentages = (sentiment_counts / total * 100).round(2)
-    
-    colors = plt.cm.tab20c(range(len(sentiment_percentages)))
 
-    fig, ax = plt.subplots(figsize=(10, 8))
-    ax.pie(
+    sentiment_counts = _clean_series(df, "user_sentiment").value_counts()
+
+    NUM_sentiment_TO_SHOW = 3
+    top_sentiments = sentiment_counts.head(NUM_sentiment_TO_SHOW)
+    if top_sentiments.empty:
+        raise HTTPException(400, "Нет данных для построения графика сентимента")
+
+    total = top_sentiments.sum()
+    sentiment_percentages = (top_sentiments / total * 100).round(2)
+
+    n = len(sentiment_percentages)
+    colors = plt.cm.tab20c(range(n))
+
+    fig, ax = plt.subplots(figsize=(12, 8))
+    wedges, texts, autotexts = ax.pie(
         sentiment_percentages.values,
         labels=None,
-        autopct="",
+        autopct="%1.1f%%",
         colors=colors,
-        startangle=140
+        startangle=140,
+        pctdistance=0.85,
     )
+
+    for autotext in autotexts:
+        autotext.set_color("white")
+        autotext.set_fontweight("bold")
+        autotext.set_fontsize(10)
+
     ax.axis("equal")
-    plt.title("Распределение сентимента", fontsize=20, pad=20)
+    plt.title("Распределение сентимента", fontsize=30, pad=20)
 
     legend_patches = []
-    for i in range(len(sentiment_percentages)):
+    for i in range(n):
+        sentiment = sentiment_percentages.index[i]
+        percentage = sentiment_percentages.values[i]
         legend_patches.append(
-            mpatches.Patch(
-                color=colors[i],
-                label=f"{sentiment_percentages.index[i]} - {sentiment_percentages.values[i]}%"
-            )
+            mpatches.Patch(color=colors[i], label=f"{sentiment} - {percentage}%")
         )
 
     plt.legend(
         handles=legend_patches,
         title="Сентимент",
         loc="center left",
-        bbox_to_anchor=(1, 0.5),
-        fontsize=15
+        bbox_to_anchor=(1.1, 0.5),
+        fontsize=18,
     )
 
     plt.tight_layout()
@@ -128,6 +141,7 @@ def sentiment_pie_png():
     buf.seek(0)
 
     return StreamingResponse(buf, media_type="image/png")
+
 
 @router.get("/emotion-bubble.png") 
 def emotion_bubble_png():
