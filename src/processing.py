@@ -29,29 +29,29 @@ def check_file_extension(path: str) -> pd.DataFrame:
     elif extension == ".json":
         return pd.read_json(path)
     else:
-        raise ValueError(f"Неподдерживаемый формат: {extension}")
+        raise ValueError(f"неподдерживаемый формат: {extension}")
 
 
 def database_update(messages_path: str, limit: Optional[int] = None) -> str:
-    print(f"[database_update] Старт обработки файла: {messages_path}")
+    print(f"[database_update] начало обработки файла: {messages_path}")
 
     df = check_file_extension(messages_path)
-    print(f"[database_update] Прочитано строк: {len(df)}, колонки: {list(df.columns)}")
+    print(f"[database_update] прочитано строк: {len(df)}, колонки: {list(df.columns)}")
 
     if limit is not None:
         df = df.head(limit)
-        print(f"[database_update] Применён limit={limit}, строк осталось: {len(df)}")
+        print(f"[database_update] применён limit={limit}, строк осталось: {len(df)}")
 
     if "text" not in df.columns:
         raise ValueError(
-            f"В датасете нет колонки 'text'. Найденные колонки: {list(df.columns)}"
+            f"отсутствует колонка 'text'. найденные колонки: {list(df.columns)}"
         )
 
     has_source = "source" in df.columns
     if has_source:
-        print("[database_update] Найдена колонка 'source' — будет использовано условие source == 'CLIENT'.")
+        print("[database_update] найдена колонка 'source' — будет использовано условие source == 'CLIENT'")
     else:
-        print("[database_update] Колонки 'source' нет — вставляем ВСЕ строки без фильтра.")
+        print("[database_update] колонки 'source' нет — вставляем все строки")
 
     connection = ps.connect(
         host=os.getenv("DB_HOST"),
@@ -65,20 +65,20 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
 
     cursor = connection.cursor()
 
-    create_table_query = """
-        CREATE TABLE IF NOT EXISTS s7_data (
-            user_text      TEXT,
-            user_sentiment TEXT,
-            user_emotion   TEXT,
-            user_topic     TEXT,
-            user_language  TEXT
-        );
-    """
-    cursor.execute(create_table_query)
+    # create_table_query = """
+    #     CREATE TABLE IF NOT EXISTS s7_data (
+    #         user_text      TEXT,
+    #         user_sentiment TEXT,
+    #         user_emotion   TEXT,
+    #         user_topic     TEXT,
+    #         user_language  TEXT
+    #     );
+    # """
+    # cursor.execute(create_table_query)
 
     insert_query = """
-        INSERT INTO s7_data (user_text, user_sentiment, user_emotion, user_topic, user_language)
-        VALUES (%s, %s, %s, %s, %s);
+        INSERT INTO s7_data (user_text, user_language, message_time, user_sentiment, user_emotion, user_topic)
+        VALUES (%s, %s, %s, %s, %s, %s);
     """
 
     rows_inserted = 0
@@ -87,6 +87,7 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
 
     for i in range(len(df)):
         text = str(df.iloc[i]["text"]).strip()
+        message_time = str(df.iloc[i]["dt"]).strip()
 
         if not text:
             continue
@@ -106,10 +107,11 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
         else:
             data_to_insert = (
             text,
+            detected_language,
+            message_time,
             detected_sentiment,
             detected_emotion,
             detected_topic,
-            detected_language,
         )
         
             if db_write_start is None:
@@ -118,19 +120,19 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
             cursor.execute(insert_query, data_to_insert)
             rows_inserted += 1
 
-    print(f"[database_update] Вставлено НОВЫХ строк в БД: {rows_inserted}")
+    print(f"[database_update] вставлено новых строк в БД: {rows_inserted}")
 
     db_write_end = time.perf_counter()
 
     if db_write_start is not None:
         write_time = db_write_end - db_write_start
         print(
-            f"[database_update] Время работы: {write_time:.4f} сек "
+            f"[database_update] время работы: {write_time:.4f} сек. "
             f"(строк: {rows_inserted})"
         )
 
     connection.commit()
-    print("[database_update] Транзакция зафиксирована (COMMIT)")
+    print("[database_update] добавление строк зафиксировано")
 
     export_cursor = connection.cursor()
     export_cursor.execute("SELECT * FROM s7_data")
@@ -148,7 +150,7 @@ def database_update(messages_path: str, limit: Optional[int] = None) -> str:
         csv_writer.writerow(col_names) 
         csv_writer.writerows(rows)
 
-    print(f"[database_update] Экспортировано в CSV: {export_path}")
+    print(f"[database_update] экспортировано в .csv: {export_path}")
 
     export_cursor.close()
     cursor.close()
