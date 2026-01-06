@@ -16,7 +16,7 @@ class Model:
         self.valid_emotions = {'interest', 'fear', 'anger', 'others', 'joy', 'surprise'}
         
     def predict(self, text):
-        inputs = self.tokenizer(text, padding=True, truncation=True, return_tensors="pt").to(self.device)
+        inputs = self.tokenizer(text, padding=True, truncation=False, return_tensors="pt").to(self.device)
         with torch.no_grad():
             logits = self.model(**inputs).logits
         emotion = self.model.config.id2label[logits.argmax().item()]

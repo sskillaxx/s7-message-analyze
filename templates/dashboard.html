@@ -9,51 +9,166 @@
 
   <form id="upload-form" enctype="multipart/form-data">
     <input type="file" id="csv-file" name="file" accept=".csv" required />
+    <label style="margin-left: 10px;">
+      Колонка с датой:
+      <input type="text" id="date-column" name="date_column" placeholder="message_time" required />
+    </label>
     <button type="submit">Загрузить CSV и создать дашборд</button>
     <span id="upload-status"></span>
   </form>
-  
-  <button id="btn-topic">Показать дашборд по тематикам</button>
-  <button id="btn-sentiment" style="margin-left: 8px;">Показать дашборд по сентиментам</button>
-  <button id="btn-emotion" style="margin-left: 8px;">Показать дашборд по эмоциям</button>
-  <button id="btn-emotion-topic" style="margin-left: 8px;">
-    Интерактив: эмоции ↔️ тематики
+
+  <div style="margin-top: 16px; padding: 12px; border: 1px solid #ddd; border-radius: 6px;">
+    <h3 style="margin: 0 0 8px 0;">Дашборды за период</h3>
+    <label>
+      Дата начала:
+      <input type="date" id="range-start" />
+    </label>
+    <label style="margin-left: 10px;">
+      Дата конца:
+      <input type="date" id="range-end" />
+    </label>
+    <button id="btn-range" type="button" style="margin-left: 10px;">
+      Показать дашборды за период
+    </button>
+    <div id="date-range-info" style="margin-top: 8px; font-size: 14px; color: #666;"></div>
+  </div>
+
+  <button id="btn-topic" type="button" disabled>Показать дашборд по тематикам</button>
+  <button id="btn-sentiment" type="button" style="margin-left: 8px;" disabled>Показать дашборд по сентиментам</button>
+  <button id="btn-emotion" type="button" style="margin-left: 8px;" disabled>Показать дашборд по эмоциям</button>
+  <button id="btn-emotion-topic" type="button" style="margin-left: 8px;" disabled>
+    Интерактив: эмоции и тематики
   </button>
 
-  
   <div style="margin-top: 16px;">
+    <!-- Общие дашборды -->
     <img id="chart-topic" alt="Topic chart" style="max-width: 100%; display:none;" />
     <img id="chart-sentiment" alt="Sentiment chart" style="max-width: 100%; display:none; margin-top: 16px;" />
-    <img id="chart-emotion" alt="Sentiment chart" style="max-width: 100%; display:none; margin-top: 20px;" />
+    <img id="chart-emotion" alt="Emotion chart" style="max-width: 100%; display:none; margin-top: 20px;" />
     <iframe
       id="chart-emotion-topic"
       style="width:100%; height:900px; border:1px solid #ddd; display:none; margin-top: 20px;"
     ></iframe>
 
+    <!-- Дашборды за период -->
+    <img id="chart-topic-range" alt="Topic chart (range)" style="max-width: 100%; display:none; margin-top: 30px;" />
+    <img id="chart-sentiment-range" alt="Sentiment chart (range)" style="max-width: 100%; display:none; margin-top: 16px;" />
+    <img id="chart-emotion-range" alt="Emotion chart (range)" style="max-width: 100%; display:none; margin-top: 20px;" />
+    <iframe
+      id="chart-emotion-topic-range"
+      style="width:100%; height:900px; border:1px solid #ddd; display:none; margin-top: 20px;"
+    ></iframe>
   </div>
 
   <script>
+    // Функция для получения диапазона дат из файла
+    async function fetchDateRange() {
+      try {
+        const response = await fetch("/dashboard/get-date-range");
+        if (response.ok) {
+          const data = await response.json();
+          document.getElementById("date-range-info").textContent = 
+            `Доступный диапазон: ${data.min_date} - ${data.max_date}`;
+          document.getElementById("range-start").value = data.min_date;
+          document.getElementById("range-end").value = data.max_date;
+        } else {
+          console.error("Ошибка получения диапазона дат:", response.status);
+        }
+      } catch (error) {
+        console.error("Ошибка получения диапазона дат:", error);
+      }
+    }
+
+    // Обработчики кнопок (теперь с параметрами даты)
     document.getElementById("btn-topic").addEventListener("click", () => {
+      const start = document.getElementById("range-start").value;
+      const end = document.getElementById("range-end").value;
+      
+      const params = new URLSearchParams();
+      if (start) params.set("start_date", start);
+      if (end) params.set("end_date", end);
+      params.set("t", Date.now());
+      
+      const q = params.toString() ? "?" + params.toString() : "?t=" + Date.now();
+
       const imgTopic = document.getElementById("chart-topic");
-      imgTopic.src = "/dashboard/topic-pie.png?t=" + Date.now();
+      imgTopic.src = "/dashboard/topic-pie.png" + q;
       imgTopic.style.display = "block";
     });
 
     document.getElementById("btn-sentiment").addEventListener("click", () => {
+      const start = document.getElementById("range-start").value;
+      const end = document.getElementById("range-end").value;
+      
+      const params = new URLSearchParams();
+      if (start) params.set("start_date", start);
+      if (end) params.set("end_date", end);
+      params.set("t", Date.now());
+      
+      const q = params.toString() ? "?" + params.toString() : "?t=" + Date.now();
+
       const imgSent = document.getElementById("chart-sentiment");
-      imgSent.src = "/dashboard/sentiment-pie.png?t=" + Date.now();
+      imgSent.src = "/dashboard/sentiment-pie.png" + q;
       imgSent.style.display = "block";
     });
 
     document.getElementById("btn-emotion").addEventListener("click", () => {
-    const img = document.getElementById("chart-emotion");
-    img.src = "/dashboard/emotion-bubble.png?t=" + Date.now();
-    img.style.display = "block";
+      const start = document.getElementById("range-start").value;
+      const end = document.getElementById("range-end").value;
+      
+      const params = new URLSearchParams();
+      if (start) params.set("start_date", start);
+      if (end) params.set("end_date", end);
+      params.set("t", Date.now());
+      
+      const q = params.toString() ? "?" + params.toString() : "?t=" + Date.now();
+
+      const img = document.getElementById("chart-emotion");
+      img.src = "/dashboard/emotion-bubble.png" + q;
+      img.style.display = "block";
     });
 
     document.getElementById("btn-emotion-topic").addEventListener("click", () => {
+      const start = document.getElementById("range-start").value;
+      const end = document.getElementById("range-end").value;
+      
+      const params = new URLSearchParams();
+      if (start) params.set("start_date", start);
+      if (end) params.set("end_date", end);
+      params.set("t", Date.now());
+      
+      const q = params.toString() ? "?" + params.toString() : "?t=" + Date.now();
+
       const frame = document.getElementById("chart-emotion-topic");
-      frame.src = "/dashboard/emotion-topic?t=" + Date.now();
+      frame.src = "/dashboard/emotion-topic" + q;
+      frame.style.display = "block";
+    });
+
+    document.getElementById("btn-range").addEventListener("click", () => {
+      const start = document.getElementById("range-start").value;
+      const end = document.getElementById("range-end").value;
+
+      const params = new URLSearchParams();
+      if (start) params.set("start_date", start);
+      if (end) params.set("end_date", end);
+      params.set("t", Date.now());
+
+      const q = "?" + params.toString();
+
+      const imgTopic = document.getElementById("chart-topic-range");
+      imgTopic.src = "/dashboard/topic-pie.png" + q;
+      imgTopic.style.display = "block";
+
+      const imgSent = document.getElementById("chart-sentiment-range");
+      imgSent.src = "/dashboard/sentiment-pie.png" + q;
+      imgSent.style.display = "block";
+
+      const imgEmo = document.getElementById("chart-emotion-range");
+      imgEmo.src = "/dashboard/emotion-bubble.png" + q;
+      imgEmo.style.display = "block";
+
+      const frame = document.getElementById("chart-emotion-topic-range");
+      frame.src = "/dashboard/emotion-topic" + q;
       frame.style.display = "block";
     });
 
@@ -61,22 +176,44 @@
       e.preventDefault();
 
       const fileInput = document.getElementById("csv-file");
+      const dateColumnInput = document.getElementById("date-column");
+      
       if (!fileInput.files.length) return;
+      if (!dateColumnInput.value.trim()) {
+        alert("Пожалуйста, укажите название колонки с датой");
+        return;
+      }
 
       const form = new FormData();
       form.append("file", fileInput.files[0]);
+      form.append("date_column", dateColumnInput.value.trim());
 
       const status = document.getElementById("upload-status");
       status.textContent = "Загрузка...";
 
-      const resp = await fetch("/dashboard/upload", { method: "POST", body: form });
+      try {
+        const resp = await fetch("/dashboard/upload", { method: "POST", body: form });
 
-      if (resp.redirected) {
-        window.location.href = resp.url;
-        return;
+        if (resp.redirected) {
+          window.location.href = resp.url;
+          return;
+        }
+
+        if (resp.ok) {
+          status.textContent = "Загружено";
+          // Активировать кнопки дашбордов
+          document.querySelectorAll("#btn-topic, #btn-sentiment, #btn-emotion, #btn-emotion-topic").forEach(btn => {
+            btn.disabled = false;
+          });
+          // Получить диапазон дат
+          fetchDateRange();
+        } else {
+          status.textContent = "Ошибка загрузки";
+        }
+      } catch (error) {
+        status.textContent = "Ошибка загрузки: " + error.message;
       }
-
-      status.textContent = resp.ok ? "Загружено" : "Ошибка загрузки";
+    });
   </script>
 
 </body>

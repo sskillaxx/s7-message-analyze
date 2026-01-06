@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 os.environ['HTTP_PROXY'] = os.getenv("HTTP_PROXY")
-os.environ['HTTPS_PROXY'] = os.getenv("HTTPS_PROXY")
+os.environ['HTTPS_PROXY'] = os.getenv("HTTPS_PROXY") 
 
 class Model:
     def __init__(self, model_path: str):
@@ -23,7 +23,7 @@ class Model:
                             ]
         
     def predict(self, text):
-        inputs = self.tokenizer(text, padding=True, truncation=True, return_tensors="pt").to(self.device)
+        inputs = self.tokenizer(text, padding=True, truncation=False, return_tensors="pt").to(self.device)
         with torch.no_grad():
             logits = self.model(**inputs).logits
         topic = self.model.config.id2label[logits.argmax().item()]
@@ -33,6 +33,7 @@ class Model:
             return 'invalid'
 
 ru_predictor = None
+en_predictor = None
 
 def detect_ru_topic(text):
     global ru_predictor
@@ -44,7 +45,13 @@ def detect_ru_topic(text):
     return result
 
 def detect_en_topic(text):
-    return "TBA"
+    global en_predictor
+    
+    if en_predictor is None:
+        en_predictor = Model("dalture/s7-eng-topic")
+    
+    result = en_predictor.predict(text)
+    return result
 
 def detect_topic(text, language):
     if language == "ru":

@@ -3,6 +3,8 @@ import csv
 import time
 from typing import Optional
 from dotenv import load_dotenv
+import pyarrow
+
 load_dotenv()
 
 from pathlib import Path

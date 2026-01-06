@@ -1,38 +1,38 @@
 import io
-import pandas as pd
-
+import os
+from datetime import date, datetime, time
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File
-from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
+
+import numpy as np
+import pandas as pd
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
-from fastapi import HTTPException 
-import numpy as np
-import os
+import pyarrow
 
 import matplotlib
 matplotlib.use("Agg")
+import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
-@router.post("/upload")
-async def upload_dashboard_csv(file: UploadFile = File(...)):
-    target = DATA_DIR / "dashboard_uploaded.csv"
+templates = Jinja2Templates(directory="templates")
 
-    contents = await file.read()
-    target.write_bytes(contents)
-
-    global _DASHBOARD_CSV_PATH
-    _DASHBOARD_CSV_PATH = target
-
-    return RedirectResponse(url="/dashboard", status_code=303)
+DATA_DIR = Path("data")
+CSV_PATH = DATA_DIR / "exported_s7_data.csv"
 
 def _load_dashboard_df() -> pd.DataFrame:
-    if _DASHBOARD_CSV_PATH is None:
-        raise HTTPException(400, "CSV ещё не загружен. Сначала POST /dashboard/upload")
+    if not CSV_PATH.exists():
+        raise HTTPException(400, "Файл exported_s7_data.csv не найден. Сначала выполните /dataset/upload-dataset-export")
 
-    return pd.read_csv(_DASHBOARD_CSV_PATH, encoding="utf-8")
+    try:
+        df = pd.read_csv(CSV_PATH, encoding="utf-8")
+    except UnicodeDecodeError:
+        df = pd.read_csv(CSV_PATH, encoding="cp1251")
+    
+    return df
 
 def _clean_series(df: pd.DataFrame, col: str) -> pd.Series:
     if col not in df.columns:
@@ -42,23 +42,54 @@ def _clean_series(df: pd.DataFrame, col: str) -> pd.Series:
     s = s[(s != "") & (s.str.lower() != "nan") & (s.str.lower() != "undefined")]
     return s
 
-templates = Jinja2Templates(directory="templates")
-
-DATA_DIR = Path("data")
-CSV_PATH = DATA_DIR / "exported_s7_data.csv"
-_DASHBOARD_CSV_PATH: Path 
-
 @router.get("/", response_class=HTMLResponse)
 def dashboard_page(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
-@router.get("/topic-pie.png") 
-def topic_pie_png():
+@router.get("/get-date-range")
+def get_date_range():
     df = _load_dashboard_df()
+    
+    if "message_time" not in df.columns:
+        raise HTTPException(400, "Колонка 'message_time' не найдена в файле exported_s7_data.csv")
+    
+    # Преобразуем колонку в datetime
+    date_col = pd.to_datetime(df["message_time"], errors='coerce')
+    
+    # Удаляем NaT значения
+    date_col = date_col.dropna()
+    
+    if date_col.empty:
+        raise HTTPException(400, f"Колонка 'message_time' не содержит корректных дат")
+    
+    min_date = date_col.min().strftime('%Y-%m-%d')
+    max_date = date_col.max().strftime('%Y-%m-%d')
+    
+    return {"min_date": min_date, "max_date": max_date}
+
+
+@router.get("/topic-pie.png")
+def topic_pie_png(
+    start_date: str | None = Query(default=None, description="Начало периода: YYYY-MM-DD"),
+    end_date: str | None = Query(default=None, description="Конец периода: YYYY-MM-DD"),
+):
+    df = _load_dashboard_df()
+
+    start = _parse_date_param(start_date, is_end=False)
+    end = _parse_date_param(end_date, is_end=True)
+    df = _filter_df_by_message_time(df, start, end)
 
     topic_counts = _clean_series(df, "user_topic").value_counts()
     if topic_counts.empty:
-        raise HTTPException(400, "Нет данных для построения графика тематик")
+        # Добавим отладочную информацию
+        total_rows = len(df)
+        non_empty_topics = df['user_topic'].dropna().astype(str).str.strip().nunique()
+        raise HTTPException(
+            400,
+            f"Нет данных для построения графика тематик. "
+            f"Всего строк: {total_rows}, уникальных непустых тем: {non_empty_topics}. "
+            f"Проверьте наличие колонки 'user_topic' и её содержимое."
+        )
 
     total = topic_counts.sum()
     topic_percentages = (topic_counts / total * 100).round(2)
@@ -109,16 +140,31 @@ def topic_pie_png():
 
     return StreamingResponse(buf, media_type="image/png")
 
-@router.get("/sentiment-pie.png") 
-def sentiment_pie_png():
+
+@router.get("/sentiment-pie.png")
+def sentiment_pie_png(
+    start_date: str | None = Query(default=None, description="Начало периода: YYYY-MM-DD"),
+    end_date: str | None = Query(default=None, description="Конец периода: YYYY-MM-DD"),
+):
     df = _load_dashboard_df()
+
+    start = _parse_date_param(start_date, is_end=False)
+    end = _parse_date_param(end_date, is_end=True)
+    df = _filter_df_by_message_time(df, start, end)
 
     sentiment_counts = _clean_series(df, "user_sentiment").value_counts()
 
     NUM_sentiment_TO_SHOW = 3
     top_sentiments = sentiment_counts.head(NUM_sentiment_TO_SHOW)
     if top_sentiments.empty:
-        raise HTTPException(400, "Нет данных для построения графика сентимента")
+        total_rows = len(df)
+        non_empty_sentiments = df['user_sentiment'].dropna().astype(str).str.strip().nunique()
+        raise HTTPException(
+            400,
+            f"Нет данных для построения графика сентимента. "
+            f"Всего строк: {total_rows}, уникальных непустых сентиментов: {non_empty_sentiments}. "
+            f"Проверьте наличие колонки 'user_sentiment' и её содержимое."
+        )
 
     total = top_sentiments.sum()
     sentiment_percentages = (top_sentiments / total * 100).round(2)
@@ -170,10 +216,17 @@ def sentiment_pie_png():
     return StreamingResponse(buf, media_type="image/png")
 
 
-@router.get("/emotion-bubble.png") 
-def emotion_bubble_png():
+@router.get("/emotion-bubble.png")
+def emotion_bubble_png(
+    start_date: str | None = Query(default=None, description="Начало периода: YYYY-MM-DD"),
+    end_date: str | None = Query(default=None, description="Конец периода: YYYY-MM-DD"),
+):
     df = _load_dashboard_df()
-    
+
+    start = _parse_date_param(start_date, is_end=False)
+    end = _parse_date_param(end_date, is_end=True)
+    df = _filter_df_by_message_time(df, start, end)
+
     emotion_counts = _clean_series(df, "user_emotion").value_counts()
 
     if len(df) == 0:
@@ -232,19 +285,21 @@ def emotion_bubble_png():
 
     return StreamingResponse(buf, media_type="image/png")
 
+
 @router.get("/emotion-topic", response_class=HTMLResponse)
-async def emotion_topic_dashboard(request: Request):
-    global _DASHBOARD_CSV_PATH
+async def emotion_topic_dashboard(
+    request: Request,
+    start_date: str | None = Query(default=None, description="Начало периода: YYYY-MM-DD"),
+    end_date: str | None = Query(default=None, description="Конец периода: YYYY-MM-DD"),
+):
+    # Используем тот же источник данных, что и остальные дашборды
+    df = _load_dashboard_df()
 
-    if not _DASHBOARD_CSV_PATH or not os.path.exists(_DASHBOARD_CSV_PATH):
-        return HTMLResponse(
-            "<h3>CSV не загружен</h3><p>Сначала загрузите файл на странице /dashboard.</p>",
-            status_code=400
-        )
+    
 
-    import plotly.graph_objects as go
-
-    df = pd.read_csv(_DASHBOARD_CSV_PATH)
+    start = _parse_date_param(start_date, is_end=False)
+    end = _parse_date_param(end_date, is_end=True)
+    df = _filter_df_by_message_time(df, start, end)
 
     df_clean = df[~df["user_emotion"].isin(["undefined", "invalid"])]
     df_clean = df_clean.dropna(subset=["user_emotion"])
@@ -299,3 +354,47 @@ async def emotion_topic_dashboard(request: Request):
 
     html = fig.to_html(full_html=True, include_plotlyjs="cdn")
     return HTMLResponse(html)
+
+
+def _parse_date_param(value: str | None, *, is_end: bool) -> datetime | None:
+    """
+    Поддерживаем:
+    - YYYY-MM-DD (из <input type="date">)
+
+    Для start используем начало дня, для end — конец дня (включительно).
+    """
+    if value is None or str(value).strip() == "":
+        return None
+
+    v = str(value).strip()
+
+    # YYYY-MM-DD
+    try:
+        d = date.fromisoformat(v)
+        return datetime.combine(d, time.max if is_end else time.min)
+    except ValueError:
+        raise HTTPException(
+            400,
+            "Некорректный формат даты. Ожидаю YYYY-MM-DD.",
+        )
+
+
+def _filter_df_by_message_time(df: pd.DataFrame, start: datetime | None, end: datetime | None) -> pd.DataFrame:
+    """Фильтрует df по колонке message_time в интервале [start, end]."""
+    if start is None and end is None:
+        return df
+
+    if "message_time" not in df.columns:
+        raise HTTPException(400, "Для фильтрации по периоду нужна колонка 'message_time' в CSV.")
+
+    ts = pd.to_datetime(df["message_time"], errors="coerce")
+    if ts.isna().all():
+        raise HTTPException(400, f"Колонка 'message_time' не распознана как даты/время (все значения NaT).")
+
+    mask = pd.Series(True, index=df.index)
+    if start is not None:
+        mask &= ts >= start
+    if end is not None:
+        mask &= ts <= end
+
+    return df.loc[mask].copy()
