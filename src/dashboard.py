@@ -42,6 +42,18 @@ def _clean_series(df: pd.DataFrame, col: str) -> pd.Series:
     s = s[(s != "") & (s.str.lower() != "nan") & (s.str.lower() != "undefined")]
     return s
 
+def _format_date_range_for_title(start: datetime | None, end: datetime | None) -> str:
+    """
+    Формирует строку с диапазоном дат для заголовка графика в формате DD.MM.YYYY.
+    Если обе даты заданы, возвращает "\nПериод: DD.MM.YYYY – DD.MM.YYYY".
+    Если одна из дат не задана, возвращает пустую строку.
+    """
+    if start and end:
+        start_fmt = start.strftime('%d.%m.%Y')  # DD.MM.YYYY
+        end_fmt = end.strftime('%d.%m.%Y')      # DD.MM.YYYY
+        return f"\nПериод: {start_fmt} – {end_fmt}"
+    return ""
+
 @router.get("/", response_class=HTMLResponse)
 def dashboard_page(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})
@@ -53,8 +65,8 @@ def get_date_range():
     if "message_time" not in df.columns:
         raise HTTPException(400, "Колонка 'message_time' не найдена в файле exported_s7_data.csv")
     
-    # Преобразуем колонку в datetime
-    date_col = pd.to_datetime(df["message_time"], errors='coerce')
+    # Явно указываем формат даты из CSV: DD.MM.YYYY HH:MM
+    date_col = pd.to_datetime(df["message_time"], format='%d.%m.%Y %H:%M', errors='coerce')
     
     # Удаляем NaT значения
     date_col = date_col.dropna()
@@ -62,16 +74,16 @@ def get_date_range():
     if date_col.empty:
         raise HTTPException(400, f"Колонка 'message_time' не содержит корректных дат")
     
-    min_date = date_col.min().strftime('%Y-%m-%d')
-    max_date = date_col.max().strftime('%Y-%m-%d')
+    min_date = date_col.min().strftime('%d.%m.%Y')  # DD.MM.YYYY
+    max_date = date_col.max().strftime('%d.%m.%Y')  # DD.MM.YYYY
     
     return {"min_date": min_date, "max_date": max_date}
 
 
 @router.get("/topic-pie.png")
 def topic_pie_png(
-    start_date: str | None = Query(default=None, description="Начало периода: YYYY-MM-DD"),
-    end_date: str | None = Query(default=None, description="Конец периода: YYYY-MM-DD"),
+    start_date: str | None = Query(default=None, description="Начало периода: DD.MM.YYYY"),
+    end_date: str | None = Query(default=None, description="Конец периода: DD.MM.YYYY"),
 ):
     df = _load_dashboard_df()
 
@@ -112,7 +124,13 @@ def topic_pie_png(
         autotext.set_fontsize(7)
 
     ax.axis("equal")
-    plt.title("Распределение тематик обращений (%)", fontsize=14, pad=20)
+    
+    date_range_str = _format_date_range_for_title(start, end)
+    title = f"Распределение тематик обращений (%)"
+    if date_range_str:
+        title += date_range_str
+        
+    plt.title(title, fontsize=14, pad=20)
 
     legend_labels = [
         f"{topic} - {percentage}%"
@@ -143,8 +161,8 @@ def topic_pie_png(
 
 @router.get("/sentiment-pie.png")
 def sentiment_pie_png(
-    start_date: str | None = Query(default=None, description="Начало периода: YYYY-MM-DD"),
-    end_date: str | None = Query(default=None, description="Конец периода: YYYY-MM-DD"),
+    start_date: str | None = Query(default=None, description="Начало периода: DD.MM.YYYY"),
+    end_date: str | None = Query(default=None, description="Конец периода: DD.MM.YYYY"),
 ):
     df = _load_dashboard_df()
 
@@ -188,7 +206,13 @@ def sentiment_pie_png(
         autotext.set_fontsize(10)
 
     ax.axis("equal")
-    plt.title("Распределение сентимента", fontsize=30, pad=20)
+    
+    date_range_str = _format_date_range_for_title(start, end)
+    title = "Распределение сентимента"
+    if date_range_str:
+        title += date_range_str
+    
+    plt.title(title, fontsize=30, pad=20)
 
     legend_patches = []
     for i in range(n):
@@ -216,86 +240,14 @@ def sentiment_pie_png(
     return StreamingResponse(buf, media_type="image/png")
 
 
-@router.get("/emotion-bubble.png")
-def emotion_bubble_png(
-    start_date: str | None = Query(default=None, description="Начало периода: YYYY-MM-DD"),
-    end_date: str | None = Query(default=None, description="Конец периода: YYYY-MM-DD"),
-):
-    df = _load_dashboard_df()
-
-    start = _parse_date_param(start_date, is_end=False)
-    end = _parse_date_param(end_date, is_end=True)
-    df = _filter_df_by_message_time(df, start, end)
-
-    emotion_counts = _clean_series(df, "user_emotion").value_counts()
-
-    if len(df) == 0:
-        emotion_percentages = pd.Series([100.0], index=["unknown"])
-    else:
-        emotion_percentages = (emotion_counts / len(df) * 100).round(1)
-
-    emotions = emotion_percentages.index.tolist()
-    percentages = emotion_percentages.values.tolist()
-
-    np.random.seed(5)  # воспроизводимость
-    x = np.random.rand(len(emotions)) * 10
-    y = np.random.rand(len(emotions)) * 10
-
-    sizes = [p * 500 for p in percentages]
-    colors = plt.cm.Set3(np.linspace(0, 1, len(emotions))) if len(emotions) > 0 else ["grey"]
-
-    fig, (ax1, ax2) = plt.subplots(
-        1, 2, figsize=(15, 8),
-        gridspec_kw={"width_ratios": [2, 1]}
-    )
-
-    ax1.scatter(x, y, s=sizes, c=colors, alpha=0.7,
-                edgecolors="black", linewidth=1.5)
-
-    ax1.set_title("Распределение эмоций в клиентских сообщениях", fontsize=16, fontweight="regular", pad=20)
-    ax1.set_xlabel("Координата X", fontsize=12)
-    ax1.set_ylabel("Координата Y", fontsize=12)
-    ax1.grid(True, alpha=0.3)
-    ax1.set_xlim(0, 10)
-    ax1.set_ylim(0, 10)
-
-    for i, emotion in enumerate(emotions):
-        ax1.text(x[i], y[i], emotion, fontsize=10, fontweight="regular",
-                 ha="center", va="center", color="black")
-
-    legend_elements = []
-    for i, (emotion, percentage) in enumerate(zip(emotions, percentages)):
-        legend_elements.append(
-            plt.Rectangle((0, 0), 1, 1,
-                          fc=colors[i],
-                          label=f"{emotion}: {percentage}%",
-                          edgecolor="black")
-        )
-
-    ax2.legend(handles=legend_elements, loc="center", fontsize=12,
-               title="Эмоции", title_fontsize=14)
-    ax2.axis("off")
-
-    plt.tight_layout()
-
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    buf.seek(0)
-
-    return StreamingResponse(buf, media_type="image/png")
-
-
 @router.get("/emotion-topic", response_class=HTMLResponse)
 async def emotion_topic_dashboard(
     request: Request,
-    start_date: str | None = Query(default=None, description="Начало периода: YYYY-MM-DD"),
-    end_date: str | None = Query(default=None, description="Конец периода: YYYY-MM-DD"),
+    start_date: str | None = Query(default=None, description="Начало периода: DD.MM.YYYY"),
+    end_date: str | None = Query(default=None, description="Конец периода: DD.MM.YYYY"),
 ):
     # Используем тот же источник данных, что и остальные дашборды
     df = _load_dashboard_df()
-
-    
 
     start = _parse_date_param(start_date, is_end=False)
     end = _parse_date_param(end_date, is_end=True)
@@ -321,6 +273,14 @@ async def emotion_topic_dashboard(
 
     colors = ["#4285F4", "#FBBC05", "#EA4335", "#34A853"]
 
+    # --- Формируем заголовок для Plotly ---
+    date_range_str = _format_date_range_for_title(start, end)
+    plotly_title = "<b>Распределение эмоций</b>"
+    if date_range_str:
+        # Убираем символ перевода строки из строки для Plotly, заменяем на пробел
+        clean_date_str = date_range_str.replace('\n', ' ')
+        plotly_title += f"<br><sub>{clean_date_str}</sub>"
+
     fig = go.Figure(
         data=[
             go.Pie(
@@ -343,7 +303,7 @@ async def emotion_topic_dashboard(
 
     fig.update_layout(
         title=dict(
-            text="<b>Распределение эмоций",
+            text=plotly_title,
             x=0.5,
             xanchor="center",
             font=dict(size=25, family="Arial"),
@@ -359,7 +319,7 @@ async def emotion_topic_dashboard(
 def _parse_date_param(value: str | None, *, is_end: bool) -> datetime | None:
     """
     Поддерживаем:
-    - YYYY-MM-DD (из <input type="date">)
+    - DD.MM.YYYY (русский формат)
 
     Для start используем начало дня, для end — конец дня (включительно).
     """
@@ -368,14 +328,14 @@ def _parse_date_param(value: str | None, *, is_end: bool) -> datetime | None:
 
     v = str(value).strip()
 
-    # YYYY-MM-DD
+    # DD.MM.YYYY
     try:
-        d = date.fromisoformat(v)
+        d = datetime.strptime(v, "%d.%m.%Y").date()
         return datetime.combine(d, time.max if is_end else time.min)
     except ValueError:
         raise HTTPException(
             400,
-            "Некорректный формат даты. Ожидаю YYYY-MM-DD.",
+            "Некорректный формат даты. Ожидаю DD.MM.YYYY.",
         )
 
 
@@ -387,9 +347,11 @@ def _filter_df_by_message_time(df: pd.DataFrame, start: datetime | None, end: da
     if "message_time" not in df.columns:
         raise HTTPException(400, "Для фильтрации по периоду нужна колонка 'message_time' в CSV.")
 
-    ts = pd.to_datetime(df["message_time"], errors="coerce")
+    # Явно указываем формат даты из CSV: DD.MM.YYYY HH:MM
+    ts = pd.to_datetime(df["message_time"], format='%d.%m.%Y %H:%M', errors="coerce")
+
     if ts.isna().all():
-        raise HTTPException(400, f"Колонка 'message_time' не распознана как даты/время (все значения NaT).")
+        raise HTTPException(400, f"Колонка 'message_time' не распознана как даты/время. Проверьте формат: DD.MM.YYYY HH:MM")
 
     mask = pd.Series(True, index=df.index)
     if start is not None:
